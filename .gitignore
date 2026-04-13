@@ -1,0 +1,14 @@
+# Environment
+.venv/
+.env
+
+# Generated output (may contain client data)
+output/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# macOS
+.DS_Store

@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DocAuto – Automatización de Recibos</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              dark:  '#1F4E79',
+              mid:   '#2E75B6',
+              light: '#D6E4F0',
+            }
+          }
+        }
+      }
+    }
+  </script>
+</head>
+<body class="bg-slate-50 min-h-screen flex flex-col">
+
+  <!-- ── Navbar ─────────────────────────────────────────────────────── -->
+  <nav class="bg-brand-dark shadow-lg">
+    <div class="max-w-4xl mx-auto px-6 py-4 flex items-center gap-3">
+      <!-- Icon -->
+      <div class="w-9 h-9 bg-white rounded-xl flex items-center justify-center shadow">
+        <svg class="w-5 h-5 text-brand-dark" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round"
+            d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+        </svg>
+      </div>
+      <div>
+        <span class="text-white font-bold text-lg tracking-tight">DocAuto</span>
+        <span class="text-blue-300 text-xs ml-2 hidden sm:inline">Automatización Inteligente de Documentos</span>
+      </div>
+    </div>
+  </nav>
+
+  <!-- ── Main ───────────────────────────────────────────────────────── -->
+  <main id="main-content" class="flex-1 max-w-4xl mx-auto w-full px-6 py-12">
+
+    <!-- Hero -->
+    <div class="text-center mb-10">
+      <h1 class="text-3xl font-bold text-brand-dark mb-3">
+        Convierte tu recibo PDF en Excel en segundos
+      </h1>
+      <p class="text-slate-500 text-base max-w-xl mx-auto">
+        Sube el recibo de telefonía empresarial y descarga el Excel de control
+        con todas las líneas extraídas automáticamente.
+      </p>
+    </div>
+
+    <!-- ── Upload zone (default state) ──────────────────────────────── -->
+    <div id="state-upload">
+      <div
+        id="drop-zone"
+        onclick="document.getElementById('file-input').click()"
+        class="border-2 border-dashed border-brand-mid rounded-2xl p-12 text-center cursor-pointer
+               transition-all duration-200 bg-white hover:bg-brand-light hover:border-brand-dark"
+      >
+        <input id="file-input" type="file" accept=".pdf" class="hidden" />
+
+        <div class="flex flex-col items-center gap-4">
+          <div class="w-16 h-16 bg-brand-light rounded-full flex items-center justify-center">
+            <svg class="w-8 h-8 text-brand-mid" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round"
+                d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/>
+            </svg>
+          </div>
+          <div>
+            <p class="text-brand-dark font-semibold text-lg">Arrastra tu recibo PDF aquí</p>
+            <p class="text-slate-400 text-sm mt-1">o haz clic para seleccionar el archivo</p>
+          </div>
+          <span class="text-xs text-slate-400 bg-slate-100 px-3 py-1 rounded-full">
+            Solo archivos .PDF
+          </span>
+        </div>
+      </div>
+
+      <!-- Selected file indicator -->
+      <div id="file-selected" class="hidden mt-4 flex items-center justify-between
+           bg-white border border-slate-200 rounded-xl px-5 py-3 shadow-sm">
+        <div class="flex items-center gap-3">
+          <div class="w-8 h-8 bg-red-100 rounded-lg flex items-center justify-center">
+            <svg class="w-4 h-4 text-red-500" fill="currentColor" viewBox="0 0 20 20">
+              <path fill-rule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z"/>
+            </svg>
+          </div>
+          <span id="file-name" class="text-sm font-medium text-slate-700 truncate max-w-xs"></span>
+          <button
+            onclick="clearFile()"
+            title="Quitar archivo"
+            class="w-6 h-6 flex items-center justify-center rounded-full text-slate-400
+                   hover:bg-slate-100 hover:text-slate-600 transition-colors duration-150"
+          >
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
+            </svg>
+          </button>
+        </div>
+        <button
+          onclick="processFile()"
+          class="bg-brand-dark hover:bg-brand-mid text-white text-sm font-semibold
+                 px-5 py-2 rounded-lg transition-colors duration-200"
+        >
+          Procesar →
+        </button>
+      </div>
+    </div>
+
+    <!-- ── Processing state ──────────────────────────────────────────── -->
+    <div id="state-processing" class="hidden">
+      <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-12 text-center">
+        <div class="flex justify-center mb-6">
+          <svg class="w-12 h-12 text-brand-mid animate-spin" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+            <path class="opacity-75" fill="currentColor"
+              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+          </svg>
+        </div>
+        <p class="text-brand-dark font-semibold text-lg">Procesando recibo...</p>
+        <p class="text-slate-400 text-sm mt-2">Extrayendo líneas móviles del PDF</p>
+      </div>
+    </div>
+
+    <!-- ── Result card ───────────────────────────────────────────────── -->
+    <div id="state-result" class="hidden"></div>
+
+    <!-- ── Error state ───────────────────────────────────────────────── -->
+    <div id="state-error" class="hidden">
+      <div class="bg-white rounded-2xl border border-red-200 shadow-sm overflow-hidden">
+        <div class="bg-red-500 px-6 py-4 flex items-center gap-3">
+          <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round"
+              d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+          </svg>
+          <span class="text-white font-semibold">Error al procesar el archivo</span>
+        </div>
+        <div class="p-6">
+          <p id="error-msg" class="text-slate-600 text-sm"></p>
+          <button
+            onclick="reset()"
+            class="mt-4 border border-slate-300 hover:border-slate-400 text-slate-600
+                   font-semibold py-2 px-5 rounded-lg text-sm transition-colors duration-200"
+          >
+            Intentar de nuevo
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- How it works -->
+    <div class="mt-14 grid grid-cols-1 sm:grid-cols-3 gap-6 text-center">
+      <div class="bg-white rounded-xl p-6 border border-slate-100 shadow-sm">
+        <div class="w-10 h-10 bg-brand-light rounded-full flex items-center justify-center mx-auto mb-3">
+          <span class="text-brand-dark font-bold">1</span>
+        </div>
+        <p class="font-semibold text-slate-700 text-sm">Sube el PDF</p>
+        <p class="text-slate-400 text-xs mt-1">Recibo de telefonía empresarial</p>
+      </div>
+      <div class="bg-white rounded-xl p-6 border border-slate-100 shadow-sm">
+        <div class="w-10 h-10 bg-brand-light rounded-full flex items-center justify-center mx-auto mb-3">
+          <span class="text-brand-dark font-bold">2</span>
+        </div>
+        <p class="font-semibold text-slate-700 text-sm">Extracción automática</p>
+        <p class="text-slate-400 text-xs mt-1">Todas las líneas en segundos</p>
+      </div>
+      <div class="bg-white rounded-xl p-6 border border-slate-100 shadow-sm">
+        <div class="w-10 h-10 bg-brand-light rounded-full flex items-center justify-center mx-auto mb-3">
+          <span class="text-brand-dark font-bold">3</span>
+        </div>
+        <p class="font-semibold text-slate-700 text-sm">Descarga el Excel</p>
+        <p class="text-slate-400 text-xs mt-1">Listo para completar y validar</p>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- ── Footer ─────────────────────────────────────────────────────── -->
+  <footer class="text-center text-xs text-slate-400 py-6">
+    DocAuto · Automatización Inteligente de Documentos
+  </footer>
+
+  <!-- ── JavaScript ─────────────────────────────────────────────────── -->
+  <script>
+    let selectedFile  = null
+    let currentData   = null   // { header, lineas }
+
+    // Column definitions (mirrors excel_generator.py COLUMNS)
+    const COLUMNS = [
+      { key: 'fecha_recepcion',      label: 'FECHA DE RECEPCIÓN',         auto: true  },
+      { key: 'numero_linea',         label: 'LÍNEA',                      auto: true  },
+      { key: 'fecha_salida_ingreso', label: 'FECHA DE SALIDA O INGRESO',  auto: false },
+      { key: 'operador',             label: 'OPERADOR',                   auto: true  },
+      { key: 'tipo_equipo',          label: 'TIPO DE EQUIPO',             auto: false },
+      { key: 'inicio_contrato',      label: 'INICIO DE CONTRATO',         auto: false },
+      { key: 'usuario',              label: 'USUARIO',                    auto: false },
+      { key: 'cargo_puesto',         label: 'CARGO',                      auto: false },
+      { key: 'dni',                  label: 'DNI',                        auto: false },
+      { key: 'area',                 label: 'ÁREA',                       auto: false },
+      { key: 'obra',                 label: 'OBRA',                       auto: false },
+      { key: 'marca',                label: 'MARCA',                      auto: false },
+      { key: 'plan',                 label: 'PLAN',                       auto: true  },
+      { key: 'cargo_mensual',        label: 'CARGO MENSUAL S/ (sin IGV)', auto: true  },
+      { key: 'descuentos',           label: 'DESCUENTOS S/',              auto: true  },
+      { key: 'total_linea',          label: 'TOTAL LÍNEA S/ (sin IGV)',   auto: true  },
+    ]
+
+    // ── Drag & drop ──────────────────────────────────────────────────
+    const dropZone = document.getElementById('drop-zone')
+
+    dropZone.addEventListener('dragover', e => {
+      e.preventDefault()
+      dropZone.classList.add('bg-brand-light', 'border-brand-dark')
+    })
+    dropZone.addEventListener('dragleave', () => {
+      dropZone.classList.remove('bg-brand-light', 'border-brand-dark')
+    })
+    dropZone.addEventListener('drop', e => {
+      e.preventDefault()
+      dropZone.classList.remove('bg-brand-light', 'border-brand-dark')
+      const file = e.dataTransfer.files[0]
+      if (file) setFile(file)
+    })
+    document.getElementById('file-input').addEventListener('change', e => {
+      if (e.target.files[0]) setFile(e.target.files[0])
+    })
+
+    // ── File selection ───────────────────────────────────────────────
+    function setFile(file) {
+      if (!file.name.toLowerCase().endsWith('.pdf')) {
+        showError('El archivo debe ser un PDF.')
+        return
+      }
+      selectedFile = file
+      document.getElementById('file-name').textContent = file.name
+      document.getElementById('file-selected').classList.remove('hidden')
+    }
+
+    // ── Clear selected file ──────────────────────────────────────────
+    function clearFile() {
+      selectedFile = null
+      document.getElementById('file-input').value = ''
+      document.getElementById('file-selected').classList.add('hidden')
+    }
+
+    // ── Process ──────────────────────────────────────────────────────
+    async function processFile() {
+      if (!selectedFile) return
+      showState('processing')
+
+      const formData = new FormData()
+      formData.append('file', selectedFile)
+
+      try {
+        const res  = await fetch('/process', { method: 'POST', body: formData })
+        const body = await res.json()
+        if (!res.ok) throw new Error(body.detail || 'Error desconocido')
+
+        currentData = { header: body.header, lineas: body.lineas }
+        renderResult(body)
+        showState('result')
+      } catch (err) {
+        showError(err.message)
+      }
+    }
+
+    // ── Render result (summary + editable table) ─────────────────────
+    function escHtml(s) {
+      return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')
+    }
+
+    function renderResult(body) {
+      const container = document.getElementById('state-result')
+
+      // Build header cells
+      let thCells = ''
+      COLUMNS.forEach(col => {
+        const cls = col.auto
+          ? 'bg-red-700 text-white'
+          : 'bg-yellow-400 text-slate-800'
+        thCells += `<th class="sticky top-0 z-10 ${cls} px-2 py-2 font-semibold text-center border border-white/30 whitespace-nowrap text-xs">${escHtml(col.label)}</th>`
+      })
+
+      // Build body rows
+      let tbRows = ''
+      body.lineas.forEach((linea, ri) => {
+        const alt = ri % 2 === 0
+        tbRows += '<tr>'
+        COLUMNS.forEach(col => {
+          const bg = col.auto
+            ? (alt ? 'bg-red-50' : 'bg-rose-100')
+            : 'bg-yellow-50'
+          tbRows += `<td class="${bg} border border-slate-200 p-0 min-w-[90px]">
+            <input type="text"
+              class="w-full bg-transparent px-2 py-1.5 text-xs outline-none focus:bg-white focus:ring-1 focus:ring-inset focus:ring-brand-mid"
+              data-row="${ri}" data-key="${escHtml(col.key)}"
+              value="${escHtml(linea[col.key])}"
+            /></td>`
+        })
+        tbRows += '</tr>'
+      })
+
+      container.innerHTML = `
+        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+
+          <!-- Success header -->
+          <div class="bg-emerald-500 px-6 py-3 flex items-center gap-3">
+            <svg class="w-5 h-5 text-white shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+            <span class="text-white font-semibold text-sm">${escHtml(body.empresa)}</span>
+            <div class="ml-auto flex items-center gap-4 text-emerald-100 text-xs">
+              <span>Recibo <strong class="text-white">${escHtml(body.n_recibo)}</strong></span>
+              <span>${escHtml(body.operador)}</span>
+              <span>${escHtml(body.fecha_emision)}</span>
+              <span>${escHtml(body.periodo)}</span>
+              <span class="bg-white/20 rounded-full px-2 py-0.5 font-bold text-white">${body.total_lineas} líneas</span>
+            </div>
+          </div>
+
+          <!-- Legend -->
+          <div class="flex items-center gap-6 px-4 py-2 border-b border-slate-100 bg-slate-50 text-xs text-slate-500">
+            <span class="flex items-center gap-1.5">
+              <span class="inline-block w-3 h-3 rounded bg-red-700"></span> Extraído automáticamente — editable
+            </span>
+            <span class="flex items-center gap-1.5">
+              <span class="inline-block w-3 h-3 rounded bg-yellow-400"></span> Completar manualmente
+            </span>
+          </div>
+
+          <!-- Scrollable table -->
+          <div class="overflow-auto" style="max-height:58vh">
+            <table class="border-collapse text-xs w-max min-w-full">
+              <thead><tr>${thCells}</tr></thead>
+              <tbody id="preview-tbody">${tbRows}</tbody>
+            </table>
+          </div>
+
+          <!-- Actions -->
+          <div class="px-4 py-3 border-t border-slate-100 flex flex-col sm:flex-row gap-2">
+            <button
+              onclick="downloadEdited()"
+              class="flex items-center justify-center gap-2 bg-brand-dark hover:bg-brand-mid text-white
+                     font-semibold text-sm py-2.5 px-6 rounded-xl transition-colors duration-200"
+            >
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round"
+                  d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+              </svg>
+              Descargar Excel
+            </button>
+            <button
+              onclick="reset()"
+              class="border border-slate-300 hover:border-slate-400 text-slate-600 font-semibold
+                     text-sm py-2.5 px-6 rounded-xl transition-colors duration-200"
+            >
+              Procesar otro recibo
+            </button>
+          </div>
+        </div>`
+    }
+
+    // ── Download edited ───────────────────────────────────────────────
+    async function downloadEdited() {
+      if (!currentData) return
+
+      // Collect all input values back into lineas
+      const lineas = currentData.lineas.map(l => ({ ...l }))
+      document.querySelectorAll('#preview-tbody input').forEach(inp => {
+        const ri  = parseInt(inp.dataset.row)
+        const key = inp.dataset.key
+        lineas[ri][key] = inp.value
+      })
+
+      try {
+        const res = await fetch('/download-edited', {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body:    JSON.stringify({ header: currentData.header, lineas }),
+        })
+
+        if (!res.ok) {
+          const err = await res.json()
+          showError(err.detail || 'Error al generar Excel')
+          return
+        }
+
+        const blob = await res.blob()
+        const url  = URL.createObjectURL(blob)
+        const a    = document.createElement('a')
+        a.href     = url
+        a.download = `control_telefonia_${currentData.header.n_recibo}.xlsx`
+        document.body.appendChild(a)
+        a.click()
+        document.body.removeChild(a)
+        URL.revokeObjectURL(url)
+      } catch (err) {
+        showError(err.message)
+      }
+    }
+
+    // ── Helpers ──────────────────────────────────────────────────────
+    function showState(state) {
+      // Widen layout for result state so the table has more room
+      const main = document.getElementById('main-content')
+      if (state === 'result') {
+        main.classList.remove('max-w-4xl')
+        main.classList.add('max-w-full')
+      } else {
+        main.classList.add('max-w-4xl')
+        main.classList.remove('max-w-full')
+      }
+      ;['upload', 'processing', 'result', 'error'].forEach(s => {
+        document.getElementById(`state-${s}`).classList.add('hidden')
+      })
+      document.getElementById(`state-${state}`).classList.remove('hidden')
+    }
+
+    function showError(msg) {
+      document.getElementById('error-msg').textContent = msg
+      showState('error')
+    }
+
+    function reset() {
+      selectedFile = null
+      currentData  = null
+      document.getElementById('file-input').value = ''
+      document.getElementById('file-selected').classList.add('hidden')
+      showState('upload')
+    }
+  </script>
+
+</body>
+</html>
