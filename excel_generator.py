@@ -4,6 +4,8 @@ excel_generator.py
 Takes structured data (from parser.py) and writes a formatted Excel file.
 """
 
+import io
+
 import openpyxl
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
@@ -43,7 +45,7 @@ def _fill(hex_color):
 def _center():
     return Alignment(horizontal="center", vertical="center")
 
-def generate_excel(data: dict, output_path: str):
+def generate_excel(data: dict) -> bytes:
     wb = openpyxl.Workbook()
     ws = wb.active
     ws.title = "Control Telefonía"
@@ -153,4 +155,6 @@ def generate_excel(data: dict, output_path: str):
         cell.border    = _border()
 
     ws.freeze_panes = f"A{HDR_ROW + 1}"
-    wb.save(output_path)
+    buf = io.BytesIO()
+    wb.save(buf)
+    return buf.getvalue()

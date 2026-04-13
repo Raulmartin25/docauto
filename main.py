@@ -37,7 +37,8 @@ def main():
     print(f"Extracted {n} lines  |  {h['empresa']}  |  Recibo {h['n_recibo']}")
 
     print("Generating Excel...")
-    generate_excel(data, output_path)
+    xlsx_bytes = generate_excel(data)
+    Path(output_path).write_bytes(xlsx_bytes)
 
     print(f"\nDone!  →  {output_path}")
 

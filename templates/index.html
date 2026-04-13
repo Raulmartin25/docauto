@@ -291,14 +291,14 @@
       body.lineas.forEach((linea, ri) => {
         const alt = ri % 2 === 0
         tbRows += '<tr>'
-        COLUMNS.forEach(col => {
+        COLUMNS.forEach((col, ci) => {
           const bg = col.auto
             ? (alt ? 'bg-red-50' : 'bg-rose-100')
             : 'bg-yellow-50'
           tbRows += `<td class="${bg} border border-slate-200 p-0 min-w-[90px]">
             <input type="text"
               class="w-full bg-transparent px-2 py-1.5 text-xs outline-none focus:bg-white focus:ring-1 focus:ring-inset focus:ring-brand-mid"
-              data-row="${ri}" data-key="${escHtml(col.key)}"
+              data-row="${ri}" data-col="${ci}" data-key="${escHtml(col.key)}"
               value="${escHtml(linea[col.key])}"
             /></td>`
         })
@@ -364,6 +364,48 @@
           </div>
         </div>`
     }
+
+    // ── Arrow key navigation in the table ────────────────────────────
+    document.addEventListener('keydown', function(e) {
+      const inp = document.activeElement
+      if (!inp || inp.tagName !== 'INPUT' || inp.dataset.row === undefined) return
+
+      const row      = parseInt(inp.dataset.row)
+      const col      = parseInt(inp.dataset.col)
+      const maxRow   = currentData.lineas.length - 1
+      const maxCol   = COLUMNS.length - 1
+      let nextRow    = row
+      let nextCol    = col
+      let shouldMove = false
+
+      if (e.key === 'ArrowUp') {
+        nextRow = Math.max(0, row - 1); shouldMove = true
+      } else if (e.key === 'ArrowDown' || e.key === 'Enter') {
+        nextRow = Math.min(maxRow, row + 1); shouldMove = true
+      } else if (e.key === 'ArrowRight' && inp.selectionStart === inp.value.length) {
+        nextCol = Math.min(maxCol, col + 1); shouldMove = true
+      } else if (e.key === 'ArrowLeft' && inp.selectionStart === 0) {
+        nextCol = Math.max(0, col - 1); shouldMove = true
+      } else if (e.key === 'Tab') {
+        e.preventDefault()
+        if (e.shiftKey) {
+          nextCol = col - 1
+          if (nextCol < 0) { nextCol = maxCol; nextRow = Math.max(0, row - 1) }
+        } else {
+          nextCol = col + 1
+          if (nextCol > maxCol) { nextCol = 0; nextRow = Math.min(maxRow, row + 1) }
+        }
+        shouldMove = true
+      }
+
+      if (shouldMove && (nextRow !== row || nextCol !== col)) {
+        e.preventDefault()
+        const next = document.querySelector(
+          `#preview-tbody input[data-row="${nextRow}"][data-col="${nextCol}"]`
+        )
+        if (next) { next.focus(); next.select() }
+      }
+    })
 
     // ── Download edited ───────────────────────────────────────────────
     async function downloadEdited() {
