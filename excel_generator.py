@@ -28,12 +28,13 @@ COLUMNS = [
     ("OBRA",                        22, False,  "obra"),
     ("MARCA",                       13, False,  "marca"),
     ("PLAN",                        38,  True,  "plan"),
-    ("CARGO MENSUAL S/ (sin IGV)",  22,  True,  "cargo_mensual"),
-    ("DESCUENTOS S/",               16,  True,  "descuentos"),
-    ("TOTAL LÍNEA S/ (sin IGV)",    20,  True,  "total_linea"),
+    ("CARGO MENSUAL S/ (sin IGV)",      22,  True,  "cargo_mensual"),
+    ("DESCUENTOS S/",                   16,  True,  "descuentos"),
+    ("CARGO ADICIONAL INAFECTO S/ (sin IGV)",     22,  True,  "cargo_adicional_inafecto"),
+    ("TOTAL LÍNEA S/ (sin IGV)",        20,  True,  "total_linea"),
 ]
 
-_NUMERIC_KEYS = {"cargo_mensual", "descuentos", "total_linea"}
+_NUMERIC_KEYS = {"cargo_mensual", "descuentos", "cargo_adicional_inafecto", "total_linea"}
 
 def _border():
     s = Side(style="thin")

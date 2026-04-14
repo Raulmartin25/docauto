@@ -50,6 +50,24 @@ def _parse_header(page1_text: str, full_text: str = "") -> dict:
         "periodo":       periodo,
     }
 
+def _section_sum(block: str, section_re: str, amount_re, mode: str = "positive") -> float:
+    """Sum amounts found inside a named section of an Anexo block.
+
+    mode="positive" → sum positive values only
+    mode="negative" → sum negative values only
+    mode="all"      → sum all values
+    """
+    m = re.search(section_re, block, re.DOTALL | re.IGNORECASE)
+    if not m:
+        return 0.0
+    vals = [float(a.replace(',', '')) for a in amount_re.findall(m.group(1))]
+    if mode == "positive":
+        return sum(v for v in vals if v > 0)
+    if mode == "negative":
+        return sum(v for v in vals if v < 0)
+    return sum(vals)
+
+
 def _parse_lines(full_text: str) -> list:
     amount_re = re.compile(r'S/(-?[\d,]+\.\d{2})')
     plan_re   = re.compile(
@@ -70,34 +88,33 @@ def _parse_lines(full_text: str) -> list:
         plan_match = plan_re.search(block)
         plan = plan_match.group(1).strip() if plan_match else "Sin plan"
 
-        raw_amounts = amount_re.findall(block)
-        amounts = [float(a.replace(',', '')) for a in raw_amounts]
-
-        cargos     = [a for a in amounts if a > 0]
-        descuentos = [a for a in amounts if a < 0]
-
-        adicional_block = re.search(
-            r'Cargos Adicionales Afectos:(.*?)(?=Descuentos|Cargos Adicionales Inafectos|Anexo|\Z)',
-            block, re.DOTALL | re.IGNORECASE
+        # Parse each section independently to avoid cross-section contamination
+        cargo_mensual = _section_sum(
+            block,
+            r'Cargos Mensuales:(.*?)(?=Descuentos|Cargos Adicionales|Redondeo|Anexo|\Z)',
+            amount_re, mode="positive",
         )
-        cargo_adicional = 0.0
-        if adicional_block:
-            extra = amount_re.findall(adicional_block.group(1))
-            cargo_adicional = sum(
-                float(a.replace(',', '')) for a in extra
-                if float(a.replace(',', '')) > 0
-            )
 
-        cargo_mensual = sum(cargos) - cargo_adicional
-        desc_total    = sum(descuentos)
-        total_linea   = cargo_mensual + desc_total + cargo_adicional
+        desc_total = _section_sum(
+            block,
+            r'Descuentos[^:]*:(.*?)(?=Cargos Adicionales|Redondeo|Anexo|\Z)',
+            amount_re, mode="negative",
+        )
+
+        cargo_inafecto = _section_sum(
+            block,
+            r'Cargos Adicionales Inafectos:(.*?)(?=Redondeo|Anexo|\Z)',
+            amount_re, mode="positive",
+        )
+
+        total_linea = cargo_mensual + desc_total
 
         lineas.append({
             "numero_linea":    phone,
             "plan":            plan,
             "cargo_mensual":   round(cargo_mensual, 2),
             "descuentos":      round(desc_total, 2),
-            "cargo_adicional": round(cargo_adicional, 2),
+            "cargo_adicional_inafecto": round(cargo_inafecto, 2),
             "total_linea":     round(total_linea, 2),
         })
 
