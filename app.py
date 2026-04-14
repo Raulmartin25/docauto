@@ -10,10 +10,11 @@ import tempfile
 from datetime import datetime
 from pathlib import Path
 
-from fastapi import FastAPI, File, HTTPException, Request, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import HTMLResponse, Response
 
-from parser import extract_from_pdf
+import parser as parser_movistar
+import parser_claro
 from excel_generator import generate_excel
 
 app = FastAPI(title="DocAuto")
@@ -28,7 +29,7 @@ async def index():
 
 
 @app.post("/process")
-async def process_pdf(file: UploadFile = File(...)):
+async def process_pdf(file: UploadFile = File(...), carrier: str = Form("movistar")):
     if not file.filename.lower().endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Solo se aceptan archivos PDF.")
 
@@ -37,7 +38,10 @@ async def process_pdf(file: UploadFile = File(...)):
         tmp_path = tmp.name
 
     try:
-        data = extract_from_pdf(tmp_path)
+        if carrier.lower() == "claro":
+            data = parser_claro.extract_from_pdf(tmp_path)
+        else:
+            data = parser_movistar.extract_from_pdf(tmp_path)
         h    = data["header"]
         n    = len(data["lineas"])
 

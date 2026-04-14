@@ -83,9 +83,9 @@
 
       <!-- Selected file indicator -->
       <div id="file-selected" class="hidden mt-4 flex items-center justify-between
-           bg-white border border-slate-200 rounded-xl px-5 py-3 shadow-sm">
-        <div class="flex items-center gap-3">
-          <div class="w-8 h-8 bg-red-100 rounded-lg flex items-center justify-center">
+           bg-white border border-slate-200 rounded-xl px-5 py-3 shadow-sm gap-3">
+        <div class="flex items-center gap-3 min-w-0">
+          <div class="w-8 h-8 bg-red-100 rounded-lg flex items-center justify-center shrink-0">
             <svg class="w-4 h-4 text-red-500" fill="currentColor" viewBox="0 0 20 20">
               <path fill-rule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z"/>
             </svg>
@@ -95,20 +95,33 @@
             onclick="clearFile()"
             title="Quitar archivo"
             class="w-6 h-6 flex items-center justify-center rounded-full text-slate-400
-                   hover:bg-slate-100 hover:text-slate-600 transition-colors duration-150"
+                   hover:bg-slate-100 hover:text-slate-600 transition-colors duration-150 shrink-0"
           >
             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
             </svg>
           </button>
         </div>
-        <button
-          onclick="processFile()"
-          class="bg-brand-dark hover:bg-brand-mid text-white text-sm font-semibold
-                 px-5 py-2 rounded-lg transition-colors duration-200"
-        >
-          Procesar →
-        </button>
+        <div class="flex items-center gap-3 shrink-0">
+          <!-- Carrier selector -->
+          <div class="flex rounded-lg border border-slate-200 overflow-hidden text-sm font-medium">
+            <button id="carrier-movistar"
+              onclick="setCarrier('movistar')"
+              class="px-4 py-2 bg-brand-dark text-white transition-colors duration-150"
+            >Movistar</button>
+            <button id="carrier-claro"
+              onclick="setCarrier('claro')"
+              class="px-4 py-2 bg-white text-slate-600 hover:bg-slate-50 transition-colors duration-150"
+            >Claro</button>
+          </div>
+          <button
+            onclick="processFile()"
+            class="bg-brand-dark hover:bg-brand-mid text-white text-sm font-semibold
+                   px-5 py-2 rounded-lg transition-colors duration-200"
+          >
+            Procesar →
+          </button>
+        </div>
       </div>
     </div>
 
@@ -187,29 +200,36 @@
 
   <!-- ── JavaScript ─────────────────────────────────────────────────── -->
   <script>
-    let selectedFile  = null
-    let currentData   = null   // { header, lineas }
+    let selectedFile    = null
+    let currentData     = null   // { header, lineas }
+    let selectedCarrier = 'movistar'
 
     // Column definitions (mirrors excel_generator.py COLUMNS)
+    // skipFor: carriers that should NOT show this column (matches operador value from backend)
     const COLUMNS = [
-      { key: 'fecha_recepcion',      label: 'FECHA DE RECEPCIÓN',         auto: true  },
-      { key: 'numero_linea',         label: 'LÍNEA',                      auto: true  },
-      { key: 'fecha_salida_ingreso', label: 'FECHA DE SALIDA O INGRESO',  auto: false },
-      { key: 'operador',             label: 'OPERADOR',                   auto: true  },
-      { key: 'tipo_equipo',          label: 'TIPO DE EQUIPO',             auto: false },
-      { key: 'inicio_contrato',      label: 'INICIO DE CONTRATO',         auto: false },
-      { key: 'usuario',              label: 'USUARIO',                    auto: false },
-      { key: 'cargo_puesto',         label: 'CARGO',                      auto: false },
-      { key: 'dni',                  label: 'DNI',                        auto: false },
-      { key: 'area',                 label: 'ÁREA',                       auto: false },
-      { key: 'obra',                 label: 'OBRA',                       auto: false },
-      { key: 'marca',                label: 'MARCA',                      auto: false },
-      { key: 'plan',                 label: 'PLAN',                       auto: true  },
-      { key: 'cargo_mensual',             label: 'CARGO MENSUAL S/ (sin IGV)',  auto: true  },
-      { key: 'descuentos',                label: 'DESCUENTOS S/',               auto: true  },
-      { key: 'cargo_adicional_inafecto',  label: 'CARGO ADICIONAL INAFECTO S/ (sin IGV)', auto: true  },
-      { key: 'total_linea',               label: 'TOTAL LÍNEA S/ (sin IGV)',    auto: true  },
+      { key: 'fecha_recepcion',           label: 'FECHA DE RECEPCIÓN',                      auto: true,  skipFor: [] },
+      { key: 'numero_linea',              label: 'LÍNEA',                                   auto: true,  skipFor: [] },
+      { key: 'fecha_salida_ingreso',      label: 'FECHA DE SALIDA O INGRESO',               auto: false, skipFor: [] },
+      { key: 'operador',                  label: 'OPERADOR',                                auto: true,  skipFor: [] },
+      { key: 'tipo_equipo',               label: 'TIPO DE EQUIPO',                          auto: false, skipFor: [] },
+      { key: 'inicio_contrato',           label: 'INICIO DE CONTRATO',                      auto: false, skipFor: [] },
+      { key: 'usuario',                   label: 'USUARIO',                                 auto: false, skipFor: [] },
+      { key: 'cargo_puesto',              label: 'CARGO',                                   auto: false, skipFor: [] },
+      { key: 'dni',                       label: 'DNI',                                     auto: false, skipFor: [] },
+      { key: 'area',                      label: 'ÁREA',                                    auto: false, skipFor: [] },
+      { key: 'obra',                      label: 'OBRA',                                    auto: false, skipFor: [] },
+      { key: 'marca',                     label: 'MARCA',                                   auto: false, skipFor: [] },
+      { key: 'plan',                      label: 'PLAN',                                    auto: true,  skipFor: [] },
+      { key: 'cargo_mensual',             label: 'CARGO MENSUAL S/ (sin IGV)',               auto: true,  skipFor: [] },
+      { key: 'servicios_adicionales',     label: 'SERVICIOS ADICIONALES S/ (sin IGV)',       auto: true,  skipFor: ['Movistar'] },
+      { key: 'descuentos',                label: 'DESCUENTOS S/',                            auto: true,  skipFor: ['Claro'] },
+      { key: 'cargo_adicional_inafecto',  label: 'CARGO ADICIONAL INAFECTO S/ (sin IGV)',   auto: true,  skipFor: ['Claro'] },
+      { key: 'total_linea',               label: 'TOTAL LÍNEA S/ (sin IGV)',                auto: true,  skipFor: [] },
     ]
+
+    function activeCols(operador) {
+      return COLUMNS.filter(c => !c.skipFor.includes(operador))
+    }
 
     // ── Drag & drop ──────────────────────────────────────────────────
     const dropZone = document.getElementById('drop-zone')
@@ -242,6 +262,17 @@
       document.getElementById('file-selected').classList.remove('hidden')
     }
 
+    // ── Carrier toggle ───────────────────────────────────────────────
+    function setCarrier(carrier) {
+      selectedCarrier = carrier
+      const active   = 'bg-brand-dark text-white'
+      const inactive = 'bg-white text-slate-600 hover:bg-slate-50'
+      ;['movistar', 'claro'].forEach(c => {
+        const btn = document.getElementById(`carrier-${c}`)
+        btn.className = `px-4 py-2 transition-colors duration-150 ${c === carrier ? active : inactive}`
+      })
+    }
+
     // ── Clear selected file ──────────────────────────────────────────
     function clearFile() {
       selectedFile = null
@@ -256,13 +287,14 @@
 
       const formData = new FormData()
       formData.append('file', selectedFile)
+      formData.append('carrier', selectedCarrier)
 
       try {
         const res  = await fetch('/process', { method: 'POST', body: formData })
         const body = await res.json()
         if (!res.ok) throw new Error(body.detail || 'Error desconocido')
 
-        currentData = { header: body.header, lineas: body.lineas }
+        currentData = { header: body.header, lineas: body.lineas, operador: body.header.operador }
         renderResult(body)
         showState('result')
       } catch (err) {
@@ -277,10 +309,11 @@
 
     function renderResult(body) {
       const container = document.getElementById('state-result')
+      const cols = activeCols(body.header.operador)
 
       // Build header cells
       let thCells = ''
-      COLUMNS.forEach(col => {
+      cols.forEach(col => {
         const cls = col.auto
           ? 'bg-red-700 text-white'
           : 'bg-yellow-400 text-slate-800'
@@ -292,7 +325,7 @@
       body.lineas.forEach((linea, ri) => {
         const alt = ri % 2 === 0
         tbRows += '<tr>'
-        COLUMNS.forEach((col, ci) => {
+        cols.forEach((col, ci) => {
           const bg = col.auto
             ? (alt ? 'bg-red-50' : 'bg-rose-100')
             : 'bg-yellow-50'
@@ -374,7 +407,7 @@
       const row      = parseInt(inp.dataset.row)
       const col      = parseInt(inp.dataset.col)
       const maxRow   = currentData.lineas.length - 1
-      const maxCol   = COLUMNS.length - 1
+      const maxCol   = activeCols(currentData.operador).length - 1
       let nextRow    = row
       let nextCol    = col
       let shouldMove = false
