@@ -11,30 +11,32 @@ from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 
 
-# (column label, width, is_auto_extracted, data_key)
+# (column label, width, is_auto_extracted, data_key, skip_for_carriers)
+# skip_for_carriers: set of operador values that should NOT include this column
 COLUMNS = [
     # True  = Auto-extracted from the PDF
     # False = Fill manually
-    ("FECHA DE RECEPCIÓN",          16,  True,  "fecha_recepcion"),
-    ("LÍNEA",                       14,  True,  "numero_linea"),
-    ("FECHA DE SALIDA O INGRESO",   22, False,  "fecha_salida_ingreso"),
-    ("OPERADOR",                    13,  True,  "operador"),
-    ("TIPO DE EQUIPO",              16, False,  "tipo_equipo"),
-    ("INICIO DE CONTRATO",          18, False,  "inicio_contrato"),
-    ("USUARIO",                     22, False,  "usuario"),
-    ("CARGO",                       16, False,  "cargo_puesto"),
-    ("DNI",                         12, False,  "dni"),
-    ("ÁREA",                        16, False,  "area"),
-    ("OBRA",                        22, False,  "obra"),
-    ("MARCA",                       13, False,  "marca"),
-    ("PLAN",                        38,  True,  "plan"),
-    ("CARGO MENSUAL S/ (sin IGV)",      22,  True,  "cargo_mensual"),
-    ("DESCUENTOS S/",                   16,  True,  "descuentos"),
-    ("CARGO ADICIONAL INAFECTO S/ (sin IGV)",     22,  True,  "cargo_adicional_inafecto"),
-    ("TOTAL LÍNEA S/ (sin IGV)",        20,  True,  "total_linea"),
+    ("FECHA DE RECEPCIÓN",          16,  True,  "fecha_recepcion",            set()),
+    ("LÍNEA",                       14,  True,  "numero_linea",               set()),
+    ("FECHA DE SALIDA O INGRESO",   22, False,  "fecha_salida_ingreso",       set()),
+    ("OPERADOR",                    13,  True,  "operador",                   set()),
+    ("TIPO DE EQUIPO",              16, False,  "tipo_equipo",                set()),
+    ("INICIO DE CONTRATO",          18, False,  "inicio_contrato",            set()),
+    ("USUARIO",                     22, False,  "usuario",                    set()),
+    ("CARGO",                       16, False,  "cargo_puesto",               set()),
+    ("DNI",                         12, False,  "dni",                        set()),
+    ("ÁREA",                        16, False,  "area",                       set()),
+    ("OBRA",                        22, False,  "obra",                       set()),
+    ("MARCA",                       13, False,  "marca",                      set()),
+    ("PLAN",                        38,  True,  "plan",                       set()),
+    ("CARGO MENSUAL S/ (sin IGV)",              22,  True,  "cargo_mensual",           set()),
+    ("SERVICIOS ADICIONALES S/ (sin IGV)",     22,  True,  "servicios_adicionales",   {"Movistar"}),
+    ("DESCUENTOS S/",                          16,  True,  "descuentos",              {"Claro"}),
+    ("CARGO ADICIONAL INAFECTO S/ (sin IGV)",  22,  True,  "cargo_adicional_inafecto",{"Claro"}),
+    ("TOTAL LÍNEA S/ (sin IGV)",        20,  True,  "total_linea",            set()),
 ]
 
-_NUMERIC_KEYS = {"cargo_mensual", "descuentos", "cargo_adicional_inafecto", "total_linea"}
+_NUMERIC_KEYS = {"cargo_mensual", "servicios_adicionales", "descuentos", "cargo_adicional_inafecto", "total_linea"}
 
 def _border():
     s = Side(style="thin")
@@ -53,7 +55,12 @@ def generate_excel(data: dict) -> bytes:
 
     h      = data["header"]
     lineas = data["lineas"]
-    n_cols = len(COLUMNS)
+
+    # Filter out columns that are not relevant for this carrier
+    operador = h.get("operador", "")
+    active_cols = [col for col in COLUMNS if operador not in col[4]]
+
+    n_cols = len(active_cols)
     last   = get_column_letter(n_cols)
 
     # ── Row 1 – Title ─────────────────────────────────────────────────────
@@ -96,7 +103,7 @@ def generate_excel(data: dict) -> bytes:
 
     # ── Row 4 – Column headers ────────────────────────────────────────────
     HDR_ROW = 4
-    for ci, (label, width, is_auto, _key) in enumerate(COLUMNS, 1):
+    for ci, (label, width, is_auto, _key, _skip) in enumerate(active_cols, 1):
         cell = ws.cell(HDR_ROW, ci, label)
         cell.fill      = _fill("C00000" if is_auto else "1F4E79")
         cell.font      = Font(bold=True, size=9, color="FFFFFF")
@@ -105,10 +112,13 @@ def generate_excel(data: dict) -> bytes:
         ws.column_dimensions[get_column_letter(ci)].width = width
     ws.row_dimensions[HDR_ROW].height = 32
 
+    # Precompute which column indices (1-based) are numeric
+    numeric_ci = {ci for ci, (_, _, _, key, _) in enumerate(active_cols, 1) if key in _NUMERIC_KEYS}
+
     # ── Data rows ─────────────────────────────────────────────────────────
     for i, linea in enumerate(lineas):
         row_data = []
-        for _, _, _, key in COLUMNS:
+        for _, _, _, key, _ in active_cols:
             val = linea.get(key, "")
             if key in _NUMERIC_KEYS and val != "":
                 try:
@@ -120,13 +130,13 @@ def generate_excel(data: dict) -> bytes:
         dr  = ws.max_row
         alt = i % 2 == 0
 
-        for ci, (_, _, is_auto, _key) in enumerate(COLUMNS, 1):
+        for ci, (_, _, is_auto, _key, _) in enumerate(active_cols, 1):
             cell = ws.cell(dr, ci)
             cell.border    = _border()
             cell.alignment = Alignment(vertical="center")
             if is_auto:
                 cell.fill = _fill("FCE4D6" if alt else "FADADD")
-                if ci >= 14:
+                if ci in numeric_ci:
                     cell.number_format = "#,##0.00"
             else:
                 cell.fill = _fill("FFFFC0") if cell.value == "" else _fill("EBF3FB" if alt else "FFFFFF")
@@ -147,7 +157,7 @@ def generate_excel(data: dict) -> bytes:
 
     for ci in range(3, n_cols + 1):
         cell = ws.cell(tr, ci)
-        if ci >= 14:
+        if ci in numeric_ci:
             cell.value         = f"=SUM({get_column_letter(ci)}{ds}:{get_column_letter(ci)}{de})"
             cell.number_format = "#,##0.00"
         cell.fill      = _fill("1F4E79")
