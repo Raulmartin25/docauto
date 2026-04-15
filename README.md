@@ -32,9 +32,11 @@ DocAuto lee el PDF automáticamente, extrae todas las líneas móviles y genera 
 ```
 docauto/
 ├── app.py               # Servidor FastAPI — endpoints HTTP
-├── parser.py            # Lee el PDF y extrae datos estructurados
+├── parser_movistar.py   # Parser de recibos Movistar Empresas
+├── parser_claro.py      # Parser de recibos Claro Empresas
+├── parser_utils.py      # Helpers compartidos entre parsers
 ├── excel_generator.py   # Genera el archivo Excel formateado
-├── main.py              # Entry point CLI (sin servidor)
+├── main.py              # CLI de desarrollo (sin servidor)
 ├── templates/
 │   └── index.html       # UI con Tailwind CSS
 ├── output/              # Excels generados (creado automáticamente)
@@ -79,9 +81,12 @@ Abre **http://localhost:8000** en el navegador.
 ### 4. Usar la aplicación
 
 1. Arrastra el PDF o haz clic para seleccionarlo (solo recibos de telefonía empresarial)
-2. Clic en **Procesar →**
-3. Edita cualquier celda de la tabla si es necesario
-4. Clic en **Descargar Excel**
+2. Selecciona el operador: **Movistar** o **Claro**
+3. Clic en **Procesar →**
+4. Edita cualquier celda de la tabla si es necesario
+5. Clic en **Descargar Excel**
+
+> Si el PDF no corresponde al operador seleccionado, la aplicación lo detecta y muestra un error claro antes de procesar.
 
 > Para detener el servidor: `CTRL+C` en la terminal.
 
@@ -93,9 +98,8 @@ Genera el Excel directamente en `output/` sin levantar ningún servidor:
 
 ```bash
 PDF_PATH=/ruta/al/recibo.pdf python main.py
+PDF_PATH=/ruta/al/recibo.pdf CARRIER=claro python main.py
 ```
-
-Si no se define `PDF_PATH`, usa el valor por defecto configurado en `main.py`.
 
 ---
 
@@ -105,23 +109,25 @@ El archivo tiene dos tipos de columnas:
 
 | Color | Columnas | Origen |
 |-------|----------|--------|
-| 🔴 Rojo | Fecha de recepción, Línea, Operador, Plan, Cargo mensual, Descuentos, Total línea | Extraídas automáticamente del PDF |
-| 🟡 Amarillo | Fecha de salida/ingreso, Tipo de equipo, Inicio de contrato, Usuario, Cargo, DNI, Área, Obra, Marca | Completar manualmente |
+| Rojo | Fecha de recepción, Línea, Operador, Plan, Cargo mensual, Descuentos, Total línea | Extraídas automáticamente del PDF |
+| Amarillo | Fecha de salida/ingreso, Tipo de equipo, Inicio de contrato, Usuario, Cargo, DNI, Área, Obra, Marca | Completar manualmente |
+
+Las columnas se filtran automáticamente según el operador — Claro y Movistar tienen estructuras de facturación distintas.
 
 ---
 
 ## Operadores soportados
 
 - Movistar Empresas
-- Claro *(en progreso)*
-- Entel *(en progreso)*
+- Claro Empresas
 
 ---
 
 ## Roadmap
 
-- [ ] Soporte para recibos de Claro y Entel
-- [ ] Modo IA con Claude API para mayor precisión
+- [x] Soporte para recibos de Movistar Empresas
+- [x] Soporte para recibos de Claro Empresas
+- [ ] Soporte para recibos de Entel
 - [ ] Carga de roster de empleados para auto-completar columnas manuales
 - [ ] Historial de recibos procesados
 - [ ] Autenticación por empresa
@@ -131,7 +137,9 @@ El archivo tiene dos tipos de columnas:
 
 ## Variables de entorno
 
-| Variable | Descripción | Default |
+Solo aplican al modo CLI (`main.py`). El servidor web (`app.py`) recibe estos valores desde el formulario.
+
+| Variable | Descripción | Valores |
 |----------|-------------|---------|
-| `PDF_PATH` | Ruta al PDF (solo modo CLI) | `~/Downloads/S3AA-0076408902.pdf` |
-| `ANTHROPIC_API_KEY` | API key de Claude (modo IA, opcional) | — |
+| `PDF_PATH` | Ruta al PDF a procesar | Requerido |
+| `CARRIER` | Operador del recibo | `movistar` (default) \| `claro` |

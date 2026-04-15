@@ -55,9 +55,8 @@ async def process_pdf(file: UploadFile = File(...), carrier: str = Form("movista
         h = data["header"]
         n = len(data["lineas"])
 
-        # Carrier mismatch: Movistar parser detects the real carrier from PDF text.
-        # If it found a different carrier than what the user selected, surface it clearly.
-        # (Claro parser hardcodes "Claro" so this only fires for the Movistar→other direction.)
+        # Carrier mismatch: both parsers detect the real carrier from PDF text.
+        # If it differs from what the user selected, surface a clear error.
         detected = h.get("operador", "")
         if detected and detected.lower() not in ("desconocido", "") and detected.lower() != carrier.lower():
             raise HTTPException(

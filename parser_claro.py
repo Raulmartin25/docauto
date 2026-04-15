@@ -33,12 +33,19 @@ def _parse_header(page1_text: str) -> dict:
     # Razón social is on the "Razón Social :" line
     empresa = find(r'Raz[oó]n\s+Social\s*:\s*([^\n]+)')
 
+    # Detect carrier from text rather than hardcoding — this lets app.py surface
+    # a clear mismatch error if the user uploads a Movistar (or other) bill here.
+    if re.search(r'\bmovistar\b', page1_text, re.IGNORECASE):
+        operador = "Movistar"
+    else:
+        operador = "Claro"
+
     return {
         "empresa":       empresa,
         "ruc":           ruc,
         "n_recibo":      n_recibo,
         "fecha_emision": fecha,
-        "operador":      "Claro",
+        "operador":      operador,
         "periodo":       periodo,
     }
 
