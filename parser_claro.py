@@ -16,7 +16,8 @@ Claro bill layout (CONSOLIDADO table columns after N° Celular):
 """
 
 import re
-import sys
+
+from parser_utils import BLANK_MANUAL_FIELDS, parse_float
 
 
 def _parse_header(page1_text: str) -> dict:
@@ -82,14 +83,14 @@ def _parse_consolidado(full_text: str) -> dict:
     for m in row_re.finditer(block):
         phone = m.group(1)
         result[phone] = {
-            "cargo_fijos_voz":       _f(m.group(2)),
-            "trafico_adicional":     _f(m.group(3)),
-            "servicios_adicionales": _f(m.group(4)),
-            "ldn":                   _f(m.group(5)),
-            "ldi":                   _f(m.group(6)),
-            "roaming":               _f(m.group(7)),
-            "equipos":               _f(m.group(8)),
-            "total_linea":           _f(m.group(9)),
+            "cargo_fijos_voz":       parse_float(m.group(2)),
+            "trafico_adicional":     parse_float(m.group(3)),
+            "servicios_adicionales": parse_float(m.group(4)),
+            "ldn":                   parse_float(m.group(5)),
+            "ldi":                   parse_float(m.group(6)),
+            "roaming":               parse_float(m.group(7)),
+            "equipos":               parse_float(m.group(8)),
+            "total_linea":           parse_float(m.group(9)),
         }
 
     return result
@@ -124,13 +125,6 @@ def _parse_planes(full_text: str) -> dict:
     return planes
 
 
-def _f(s: str) -> float:
-    try:
-        return float(str(s).replace(',', ''))
-    except (ValueError, AttributeError):
-        return 0.0
-
-
 def _parse_lines(consolidado: dict, planes: dict, header: dict) -> list:
     lineas = []
     for phone, row in consolidado.items():
@@ -143,18 +137,9 @@ def _parse_lines(consolidado: dict, planes: dict, header: dict) -> list:
             "descuentos":              0.0,
             "cargo_adicional_inafecto": round(row["equipos"], 2),
             "total_linea":             round(row["total_linea"], 2),
-            # Manual fields (blank)
-            "fecha_recepcion":         header["fecha_emision"],
-            "operador":                "Claro",
-            "fecha_salida_ingreso":    "",
-            "tipo_equipo":             "",
-            "inicio_contrato":         "",
-            "usuario":                 "",
-            "cargo_puesto":            "",
-            "dni":                     "",
-            "area":                    "",
-            "obra":                    "",
-            "marca":                   "",
+            "fecha_recepcion": header["fecha_emision"],
+            "operador":        "Claro",
+            **BLANK_MANUAL_FIELDS,
         })
     return lineas
 
@@ -162,8 +147,8 @@ def _parse_lines(consolidado: dict, planes: dict, header: dict) -> list:
 def extract_from_pdf(pdf_path: str) -> dict:
     try:
         import pdfplumber
-    except ImportError:
-        sys.exit("Error: pdfplumber not installed. Run: pip install pdfplumber")
+    except ImportError as exc:
+        raise RuntimeError("pdfplumber not installed. Run: pip install pdfplumber") from exc
 
     with pdfplumber.open(pdf_path) as pdf:
         page1_text = pdf.pages[0].extract_text() or ""

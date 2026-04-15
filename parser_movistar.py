@@ -1,12 +1,13 @@
 """
-parser.py
----------
+parser_movistar.py
+------------------
 Reads a Movistar Empresas PDF and returns structured data.
 Uses pdfplumber + regex — no API needed.
 """
 
 import re
-import sys
+
+from parser_utils import BLANK_MANUAL_FIELDS, parse_float
 
 
 def _parse_header(page1_text: str, full_text: str = "") -> dict:
@@ -60,7 +61,7 @@ def _section_sum(block: str, section_re: str, amount_re, mode: str = "positive")
     m = re.search(section_re, block, re.DOTALL | re.IGNORECASE)
     if not m:
         return 0.0
-    vals = [float(a.replace(',', '')) for a in amount_re.findall(m.group(1))]
+    vals = [parse_float(a) for a in amount_re.findall(m.group(1))]
     if mode == "positive":
         return sum(v for v in vals if v > 0)
     if mode == "negative":
@@ -123,8 +124,8 @@ def _parse_lines(full_text: str) -> list:
 def extract_from_pdf(pdf_path: str) -> dict:
     try:
         import pdfplumber
-    except ImportError:
-        sys.exit("Error: pdfplumber not installed. Run: .venv/bin/pip install pdfplumber")
+    except ImportError as exc:
+        raise RuntimeError("pdfplumber not installed. Run: pip install pdfplumber") from exc
 
     with pdfplumber.open(pdf_path) as pdf:
         page1_text = pdf.pages[0].extract_text() or ""
@@ -144,16 +145,8 @@ def extract_from_pdf(pdf_path: str) -> dict:
 
     # Enrich each linea with header fields and blank manual columns
     for linea in lineas:
-        linea["fecha_recepcion"]      = header["fecha_emision"]
-        linea["operador"]             = header["operador"]
-        linea["fecha_salida_ingreso"] = ""
-        linea["tipo_equipo"]          = ""
-        linea["inicio_contrato"]      = ""
-        linea["usuario"]              = ""
-        linea["cargo_puesto"]         = ""
-        linea["dni"]                  = ""
-        linea["area"]                 = ""
-        linea["obra"]                 = ""
-        linea["marca"]                = ""
+        linea["fecha_recepcion"] = header["fecha_emision"]
+        linea["operador"]        = header["operador"]
+        linea.update(BLANK_MANUAL_FIELDS)
 
     return {"header": header, "lineas": lineas}
