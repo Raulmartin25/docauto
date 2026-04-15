@@ -7,13 +7,12 @@ FastAPI server. Run with:
 
 import os
 import tempfile
-from datetime import datetime
 from pathlib import Path
 
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import HTMLResponse, Response
 
-import parser as parser_movistar
+import parser_movistar
 import parser_claro
 from excel_generator import generate_excel
 
@@ -33,23 +32,46 @@ async def process_pdf(file: UploadFile = File(...), carrier: str = Form("movista
     if not file.filename.lower().endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Solo se aceptan archivos PDF.")
 
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
-        tmp.write(await file.read())
-        tmp_path = tmp.name
-
+    # Assign tmp_path before the try so the finally can always clean up,
+    # even if the file write fails mid-way.
+    tmp_path = None
     try:
-        if carrier.lower() == "claro":
-            data = parser_claro.extract_from_pdf(tmp_path)
-        else:
-            data = parser_movistar.extract_from_pdf(tmp_path)
-        h    = data["header"]
-        n    = len(data["lineas"])
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
+            tmp_path = tmp.name          # captured immediately after file creation
+            tmp.write(await file.read())
+
+        try:
+            if carrier.lower() == "claro":
+                data = parser_claro.extract_from_pdf(tmp_path)
+            else:
+                data = parser_movistar.extract_from_pdf(tmp_path)
+        except Exception as exc:
+            raise HTTPException(
+                status_code=422,
+                detail=f"No se pudo procesar el PDF: {exc}. "
+                       "Asegúrate de subir un recibo de telefonía empresarial válido.",
+            ) from exc
+
+        h = data["header"]
+        n = len(data["lineas"])
+
+        # Carrier mismatch: Movistar parser detects the real carrier from PDF text.
+        # If it found a different carrier than what the user selected, surface it clearly.
+        # (Claro parser hardcodes "Claro" so this only fires for the Movistar→other direction.)
+        detected = h.get("operador", "")
+        if detected and detected.lower() not in ("desconocido", "") and detected.lower() != carrier.lower():
+            raise HTTPException(
+                status_code=422,
+                detail=f"El PDF parece ser de {detected} pero seleccionaste '{carrier}'. "
+                       "Selecciona el operador correcto e intenta de nuevo.",
+            )
 
         if n == 0:
             raise HTTPException(
                 status_code=422,
                 detail="No se encontraron líneas móviles en el PDF. "
-                       "Asegúrate de subir un recibo de telefonía empresarial (Movistar, Claro o Entel)."
+                       "Asegúrate de subir un recibo de telefonía empresarial (Movistar o Claro) "
+                       "y que el operador seleccionado sea el correcto.",
             )
 
         return {
@@ -63,7 +85,8 @@ async def process_pdf(file: UploadFile = File(...), carrier: str = Form("movista
             "lineas":        data["lineas"],
         }
     finally:
-        os.unlink(tmp_path)
+        if tmp_path:
+            os.unlink(tmp_path)
 
 
 @app.post("/download-edited")

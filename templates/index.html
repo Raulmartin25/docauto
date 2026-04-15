@@ -294,7 +294,7 @@
         const body = await res.json()
         if (!res.ok) throw new Error(body.detail || 'Error desconocido')
 
-        currentData = { header: body.header, lineas: body.lineas, operador: body.header.operador }
+        currentData = { header: body.header, lineas: body.lineas }
         renderResult(body)
         showState('result')
       } catch (err) {
@@ -407,7 +407,7 @@
       const row      = parseInt(inp.dataset.row)
       const col      = parseInt(inp.dataset.col)
       const maxRow   = currentData.lineas.length - 1
-      const maxCol   = activeCols(currentData.operador).length - 1
+      const maxCol   = activeCols(currentData.header.operador).length - 1
       let nextRow    = row
       let nextCol    = col
       let shouldMove = false

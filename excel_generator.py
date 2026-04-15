@@ -57,18 +57,28 @@ def generate_excel(data: dict) -> bytes:
     lineas = data["lineas"]
 
     # Filter out columns that are not relevant for this carrier
-    operador = h.get("operador", "")
+    operador    = h.get("operador", "")
     active_cols = [col for col in COLUMNS if operador not in col[4]]
+    n_cols      = len(active_cols)
+    last        = get_column_letter(n_cols)
 
-    n_cols = len(active_cols)
-    last   = get_column_letter(n_cols)
+    # ── Pre-compute style objects (reused across all cells) ───────────────
+    border         = _border()
+    fill_title     = _fill("D6E4F0")
+    fill_hdr_auto  = _fill("C00000")
+    fill_navy      = _fill("1F4E79")                      # header cols + total row
+    fill_data_auto = (_fill("FCE4D6"), _fill("FADADD"))   # (even, odd)
+    fill_data_man  = (_fill("EBF3FB"), _fill("FFFFFF"))   # filled manual (even, odd)
+    fill_yellow    = _fill("FFFFC0")                      # empty manual cell
+    center         = _center()
+    vcenter        = Alignment(vertical="center")
 
     # ── Row 1 – Title ─────────────────────────────────────────────────────
     ws.merge_cells(f"A1:{last}1")
-    ws["A1"] = f"CONTROL DE TELEFONÍA MÓVIL  ·  {h['empresa']}"
+    ws["A1"]           = f"CONTROL DE TELEFONÍA MÓVIL  ·  {h['empresa']}"
     ws["A1"].font      = Font(bold=True, size=13, color="1F4E79")
-    ws["A1"].alignment = _center()
-    ws["A1"].fill      = _fill("D6E4F0")
+    ws["A1"].alignment = center
+    ws["A1"].fill      = fill_title
     ws.row_dimensions[1].height = 28
 
     # ── Row 2 – Receipt metadata ──────────────────────────────────────────
@@ -81,14 +91,17 @@ def generate_excel(data: dict) -> bytes:
     ]
     col = 1
     for label, value in meta:
-        ws.cell(2, col,     label).font = Font(bold=True, size=9, color="1F4E79")
-        ws.cell(2, col,     label).fill = _fill("D6E4F0")
-        ws.cell(2, col + 1, value).font = Font(size=9)
-        ws.cell(2, col + 1, value).fill = _fill("D6E4F0")
+        if col > n_cols:
+            break                    # guard: don't write past the last column
+        ws.cell(2, col, label).font = Font(bold=True, size=9, color="1F4E79")
+        ws.cell(2, col, label).fill = fill_title
+        if col + 1 <= n_cols:
+            ws.cell(2, col + 1, value).font = Font(size=9)
+            ws.cell(2, col + 1, value).fill = fill_title
         col += 2
     if col <= n_cols:
         ws.merge_cells(f"{get_column_letter(col)}2:{last}2")
-        ws.cell(2, col).fill = _fill("D6E4F0")
+        ws.cell(2, col).fill = fill_title
     ws.row_dimensions[2].height = 18
 
     # ── Row 3 – Legend ────────────────────────────────────────────────────
@@ -104,11 +117,11 @@ def generate_excel(data: dict) -> bytes:
     # ── Row 4 – Column headers ────────────────────────────────────────────
     HDR_ROW = 4
     for ci, (label, width, is_auto, _key, _skip) in enumerate(active_cols, 1):
-        cell = ws.cell(HDR_ROW, ci, label)
-        cell.fill      = _fill("C00000" if is_auto else "1F4E79")
+        cell           = ws.cell(HDR_ROW, ci, label)
+        cell.fill      = fill_hdr_auto if is_auto else fill_navy
         cell.font      = Font(bold=True, size=9, color="FFFFFF")
         cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
-        cell.border    = _border()
+        cell.border    = border
         ws.column_dimensions[get_column_letter(ci)].width = width
     ws.row_dimensions[HDR_ROW].height = 32
 
@@ -131,39 +144,39 @@ def generate_excel(data: dict) -> bytes:
         alt = i % 2 == 0
 
         for ci, (_, _, is_auto, _key, _) in enumerate(active_cols, 1):
-            cell = ws.cell(dr, ci)
-            cell.border    = _border()
-            cell.alignment = Alignment(vertical="center")
+            cell           = ws.cell(dr, ci)
+            cell.border    = border
+            cell.alignment = vcenter
             if is_auto:
-                cell.fill = _fill("FCE4D6" if alt else "FADADD")
+                cell.fill = fill_data_auto[0] if alt else fill_data_auto[1]
                 if ci in numeric_ci:
                     cell.number_format = "#,##0.00"
             else:
-                cell.fill = _fill("FFFFC0") if cell.value == "" else _fill("EBF3FB" if alt else "FFFFFF")
+                cell.fill = fill_yellow if cell.value == "" else (fill_data_man[0] if alt else fill_data_man[1])
 
     # ── Totals row ────────────────────────────────────────────────────────
     ds = HDR_ROW + 1
     de = ws.max_row
     tr = ws.max_row + 1
 
-    ws.cell(tr, 1, "TOTAL").font      = Font(bold=True, color="FFFFFF")
-    ws.cell(tr, 1).fill               = _fill("1F4E79")
-    ws.cell(tr, 1).alignment          = _center()
-    ws.cell(tr, 1).border             = _border()
+    ws.cell(tr, 1, "TOTAL").font = Font(bold=True, color="FFFFFF")
+    ws.cell(tr, 1).fill          = fill_navy
+    ws.cell(tr, 1).alignment     = center
+    ws.cell(tr, 1).border        = border
     ws.cell(tr, 2, f"{len(lineas)} líneas").font = Font(bold=True, color="FFFFFF")
-    ws.cell(tr, 2).fill               = _fill("1F4E79")
-    ws.cell(tr, 2).alignment          = _center()
-    ws.cell(tr, 2).border             = _border()
+    ws.cell(tr, 2).fill          = fill_navy
+    ws.cell(tr, 2).alignment     = center
+    ws.cell(tr, 2).border        = border
 
     for ci in range(3, n_cols + 1):
         cell = ws.cell(tr, ci)
         if ci in numeric_ci:
             cell.value         = f"=SUM({get_column_letter(ci)}{ds}:{get_column_letter(ci)}{de})"
             cell.number_format = "#,##0.00"
-        cell.fill      = _fill("1F4E79")
+        cell.fill      = fill_navy
         cell.font      = Font(bold=True, color="FFFFFF")
-        cell.alignment = _center()
-        cell.border    = _border()
+        cell.alignment = center
+        cell.border    = border
 
     ws.freeze_panes = f"A{HDR_ROW + 1}"
     buf = io.BytesIO()
