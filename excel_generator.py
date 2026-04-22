@@ -20,6 +20,18 @@ _CAT_COLS = [
     for _full, short, key in CATEGORY_COLUMNS
 ]
 
+# Claro-only columns — mirror the CONSOLIDADO DE FACTURACIÓN POR LÍNEA table
+# in the Claro bill (see parser_claro._parse_consolidado for the source).
+_CLARO_COLS = [
+    ("TOTAL CARGOS FIJOS VOZ S/ (sin IGV)",     20, True, "cargos_fijos_voz",      {"Movistar"}),
+    ("TOTAL TRÁFICO VOZ ADICIONAL S/ (sin IGV)",20, True, "trafico_adicional",     {"Movistar"}),
+    ("TOTAL SERVICIOS ADICIONALES S/ (sin IGV)",20, True, "servicios_adicionales", {"Movistar"}),
+    ("TOTAL LDN S/ (sin IGV)",                  14, True, "ldn",                   {"Movistar"}),
+    ("TOTAL LDI S/ (sin IGV)",                  14, True, "ldi",                   {"Movistar"}),
+    ("TOTAL ROAMING S/ (sin IGV)",              16, True, "roaming",               {"Movistar"}),
+    ("TOTAL POR EQUIPOS S/ (sin IGV)",          18, True, "equipos",               {"Movistar"}),
+]
+
 # (column label, width, is_auto_extracted, data_key, skip_for_carriers)
 # skip_for_carriers: set of operador values that should NOT include this column
 COLUMNS = [
@@ -38,20 +50,16 @@ COLUMNS = [
     ("OBRA",                        22, False,  "obra",                       set()),
     ("MARCA",                       13, False,  "marca",                      set()),
     ("PLAN",                        38,  True,  "plan",                       set()),
-    # Movistar: one column per category replaces CARGO MENSUAL/DESCUENTOS/INAFECTO.
-    # Claro: keeps the original flat layout below.
+    # Movistar: one column per category. Claro: one column per CONSOLIDADO total.
     *_CAT_COLS,
-    ("CARGO MENSUAL S/ (sin IGV)",              22,  True,  "cargo_mensual",           {"Movistar"}),
-    ("SERVICIOS ADICIONALES S/ (sin IGV)",     22,  True,  "servicios_adicionales",   {"Movistar"}),
-    ("DESCUENTOS S/",                          16,  True,  "descuentos",              {"Claro", "Movistar"}),
-    ("CARGO ADICIONAL INAFECTO S/ (sin IGV)",  22,  True,  "cargo_adicional_inafecto",{"Claro", "Movistar"}),
+    *_CLARO_COLS,
     ("TOTAL LÍNEA S/ (sin IGV)",        20,  True,  "total_linea",            set()),
 ]
 
 _NUMERIC_KEYS = {
-    "cargo_mensual", "servicios_adicionales", "descuentos",
-    "cargo_adicional_inafecto", "total_linea",
+    "total_linea",
     *[key for _, _, key in CATEGORY_COLUMNS],
+    *[key for _, _, _, key, _ in _CLARO_COLS],
 }
 
 def _border():
