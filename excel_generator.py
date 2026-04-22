@@ -10,7 +10,7 @@ import openpyxl
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 
-from plan_categories import CATEGORIES, CATEGORY_COLUMNS, summarize_by_category
+from plan_categories import CATEGORY_COLUMNS
 
 
 # One Movistar-only column per category, built from the shared CATEGORY_COLUMNS
@@ -236,67 +236,6 @@ def generate_excel(data: dict) -> bytes:
 
     ws.freeze_panes = f"A{HDR_ROW + 1}"
 
-    _write_category_summary(wb, h, lineas)
-
     buf = io.BytesIO()
     wb.save(buf)
     return buf.getvalue()
-
-
-def _write_category_summary(wb, header: dict, lineas: list) -> None:
-    """Second sheet: 8-category resumen matching the client's reporting format."""
-    ws = wb.create_sheet("Resumen por Categoría")
-    ws.column_dimensions["A"].width = 52
-    ws.column_dimensions["B"].width = 20
-
-    border      = _border()
-    fill_title  = _fill("D6E4F0")
-    fill_navy   = _fill("1F4E79")
-    fill_cat    = _fill("FCE4D6")
-    fill_total  = _fill("1F4E79")
-    center      = _center()
-
-    ws.merge_cells("A1:B1")
-    ws["A1"]           = f"RESUMEN POR CATEGORÍA  ·  {header.get('empresa', '')}"
-    ws["A1"].font      = Font(bold=True, size=13, color="1F4E79")
-    ws["A1"].alignment = center
-    ws["A1"].fill      = fill_title
-    ws.row_dimensions[1].height = 28
-
-    ws["A2"]           = f"Recibo N° {header.get('n_recibo', '')}  ·  Período {header.get('periodo', '')}"
-    ws["A2"].font      = Font(size=9, italic=True, color="595959")
-    ws.merge_cells("A2:B2")
-
-    ws["A4"]           = "Categoría"
-    ws["B4"]           = "Monto S/ (sin IGV)"
-    for col in ("A4", "B4"):
-        ws[col].fill      = fill_navy
-        ws[col].font      = Font(bold=True, color="FFFFFF")
-        ws[col].alignment = center
-        ws[col].border    = border
-
-    totals = summarize_by_category(header, lineas)
-    total_label = CATEGORIES[-1]
-    row = 5
-    for label, amount in totals:
-        is_total = (label == total_label)
-        ws.cell(row, 1, label).border    = border
-        ws.cell(row, 2, amount).border   = border
-        ws.cell(row, 2).number_format    = "#,##0.00"
-        if is_total:
-            for c in (1, 2):
-                ws.cell(row, c).fill = fill_total
-                ws.cell(row, c).font = Font(bold=True, color="FFFFFF")
-        else:
-            for c in (1, 2):
-                ws.cell(row, c).fill = fill_cat
-        row += 1
-
-    note_row = row + 1
-    ws.cell(note_row, 1, (
-        "Nota: categorías 1-7 en montos sin IGV (tal como aparecen por anexo). "
-        "'Monto total' corresponde al 'Total a pagar' del recibo (con IGV + cargos inafectos)."
-    )).font = Font(size=8, italic=True, color="595959")
-    ws.merge_cells(start_row=note_row, start_column=1, end_row=note_row, end_column=2)
-    ws.row_dimensions[note_row].height = 28
-    ws.cell(note_row, 1).alignment = Alignment(wrap_text=True, vertical="top")
