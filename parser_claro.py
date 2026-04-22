@@ -133,19 +133,29 @@ def _parse_planes(full_text: str) -> dict:
 
 
 def _parse_lines(consolidado: dict, planes: dict, header: dict) -> list:
+    """Map each CONSOLIDADO row into a linea dict.
+
+    The 7 per-line totals come straight from the bill's table columns
+    (cargos fijos VOZ, tráfico adicional, servicios adicionales, LDN, LDI,
+    roaming, equipos). `total_linea` is the "Monto Total por Línea" column —
+    already sin-IGV on the PDF — and matches the sum of the other 7.
+    """
     lineas = []
     for phone, row in consolidado.items():
         plan = planes.get(phone, "Sin plan")
         lineas.append({
-            "numero_linea":            phone,
-            "plan":                    plan,
-            "cargo_mensual":           round(row["cargo_fijos_voz"], 2),
-            "servicios_adicionales":   round(row["servicios_adicionales"], 2),
-            "descuentos":              0.0,
-            "cargo_adicional_inafecto": round(row["equipos"], 2),
-            "total_linea":             round(row["total_linea"], 2),
-            "fecha_recepcion": header["fecha_emision"],
-            "operador":        "Claro",
+            "numero_linea":          phone,
+            "plan":                  plan,
+            "cargos_fijos_voz":      round(row["cargo_fijos_voz"], 2),
+            "trafico_adicional":     round(row["trafico_adicional"], 2),
+            "servicios_adicionales": round(row["servicios_adicionales"], 2),
+            "ldn":                   round(row["ldn"], 2),
+            "ldi":                   round(row["ldi"], 2),
+            "roaming":               round(row["roaming"], 2),
+            "equipos":               round(row["equipos"], 2),
+            "total_linea":           round(row["total_linea"], 2),
+            "fecha_recepcion":       header["fecha_emision"],
+            "operador":              "Claro",
             **BLANK_MANUAL_FIELDS,
         })
     return lineas

@@ -228,10 +228,14 @@
       { key: 'cat_movistar_empresas',     label: 'MOVISTAR EMPRESAS S/',                     auto: true,  skipFor: ['Claro'] },
       { key: 'cat_roaming',               label: 'ROAMING / LDI / SMS INT. S/',              auto: true,  skipFor: ['Claro'] },
       { key: 'cat_descuentos',            label: 'DESCUENTO Y BONIF. S/',                    auto: true,  skipFor: ['Claro'] },
-      { key: 'cargo_mensual',             label: 'CARGO MENSUAL S/ (sin IGV)',               auto: true,  skipFor: ['Movistar'] },
-      { key: 'servicios_adicionales',     label: 'SERVICIOS ADICIONALES S/ (sin IGV)',       auto: true,  skipFor: ['Movistar'] },
-      { key: 'descuentos',                label: 'DESCUENTOS S/',                            auto: true,  skipFor: ['Claro', 'Movistar'] },
-      { key: 'cargo_adicional_inafecto',  label: 'CARGO ADICIONAL INAFECTO S/ (sin IGV)',   auto: true,  skipFor: ['Claro', 'Movistar'] },
+      // Claro-only CONSOLIDADO columns (mirrors excel_generator._CLARO_COLS).
+      { key: 'cargos_fijos_voz',          label: 'TOTAL CARGOS FIJOS VOZ S/ (sin IGV)',      auto: true,  skipFor: ['Movistar'] },
+      { key: 'trafico_adicional',         label: 'TOTAL TRÁFICO VOZ ADICIONAL S/ (sin IGV)', auto: true,  skipFor: ['Movistar'] },
+      { key: 'servicios_adicionales',     label: 'TOTAL SERVICIOS ADICIONALES S/ (sin IGV)', auto: true,  skipFor: ['Movistar'] },
+      { key: 'ldn',                       label: 'TOTAL LDN S/ (sin IGV)',                   auto: true,  skipFor: ['Movistar'] },
+      { key: 'ldi',                       label: 'TOTAL LDI S/ (sin IGV)',                   auto: true,  skipFor: ['Movistar'] },
+      { key: 'roaming',                   label: 'TOTAL ROAMING S/ (sin IGV)',               auto: true,  skipFor: ['Movistar'] },
+      { key: 'equipos',                   label: 'TOTAL POR EQUIPOS S/ (sin IGV)',           auto: true,  skipFor: ['Movistar'] },
       { key: 'total_linea',               label: 'TOTAL LÍNEA S/ (sin IGV)',                auto: true,  skipFor: [] },
     ]
 
