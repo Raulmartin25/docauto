@@ -10,6 +10,15 @@ import openpyxl
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 
+from plan_categories import CATEGORIES, CATEGORY_COLUMNS, summarize_by_category
+
+
+# One Movistar-only column per category, built from the shared CATEGORY_COLUMNS
+# mapping so parser and Excel stay in lock-step.
+_CAT_COLS = [
+    (f"{short} S/ (sin IGV)", 18, True, key, {"Claro"})
+    for _full, short, key in CATEGORY_COLUMNS
+]
 
 # (column label, width, is_auto_extracted, data_key, skip_for_carriers)
 # skip_for_carriers: set of operador values that should NOT include this column
@@ -29,14 +38,21 @@ COLUMNS = [
     ("OBRA",                        22, False,  "obra",                       set()),
     ("MARCA",                       13, False,  "marca",                      set()),
     ("PLAN",                        38,  True,  "plan",                       set()),
-    ("CARGO MENSUAL S/ (sin IGV)",              22,  True,  "cargo_mensual",           set()),
+    # Movistar: one column per category replaces CARGO MENSUAL/DESCUENTOS/INAFECTO.
+    # Claro: keeps the original flat layout below.
+    *_CAT_COLS,
+    ("CARGO MENSUAL S/ (sin IGV)",              22,  True,  "cargo_mensual",           {"Movistar"}),
     ("SERVICIOS ADICIONALES S/ (sin IGV)",     22,  True,  "servicios_adicionales",   {"Movistar"}),
-    ("DESCUENTOS S/",                          16,  True,  "descuentos",              {"Claro"}),
-    ("CARGO ADICIONAL INAFECTO S/ (sin IGV)",  22,  True,  "cargo_adicional_inafecto",{"Claro"}),
+    ("DESCUENTOS S/",                          16,  True,  "descuentos",              {"Claro", "Movistar"}),
+    ("CARGO ADICIONAL INAFECTO S/ (sin IGV)",  22,  True,  "cargo_adicional_inafecto",{"Claro", "Movistar"}),
     ("TOTAL LÍNEA S/ (sin IGV)",        20,  True,  "total_linea",            set()),
 ]
 
-_NUMERIC_KEYS = {"cargo_mensual", "servicios_adicionales", "descuentos", "cargo_adicional_inafecto", "total_linea"}
+_NUMERIC_KEYS = {
+    "cargo_mensual", "servicios_adicionales", "descuentos",
+    "cargo_adicional_inafecto", "total_linea",
+    *[key for _, _, key in CATEGORY_COLUMNS],
+}
 
 def _border():
     s = Side(style="thin")
@@ -178,7 +194,109 @@ def generate_excel(data: dict) -> bytes:
         cell.alignment = center
         cell.border    = border
 
+    # ── Redondeo + Total final (last column) ──────────────────────────────
+    # Only carriers that expose a Redondeo line on the receipt (Movistar today)
+    # need these extra rows — they reconcile the per-line sum with the
+    # subtotal printed on the PDF.
+    redondeo = h.get("redondeo")
+    if redondeo is not None:
+        total_ci = n_cols  # TOTAL LÍNEA is always the last active column
+        total_letter = get_column_letter(total_ci)
+        fill_redondeo = _fill("FFF2CC")
+        fill_total_final = _fill("E2EFDA")
+
+        rr = tr + 1
+        ws.merge_cells(start_row=rr, start_column=1, end_row=rr, end_column=total_ci - 1)
+        ws.cell(rr, 1, "REDONDEO").font      = Font(bold=True, color="1F4E79")
+        ws.cell(rr, 1).alignment             = Alignment(horizontal="left", vertical="center", indent=1)
+        for ci in range(1, total_ci):
+            ws.cell(rr, ci).fill   = fill_redondeo
+            ws.cell(rr, ci).border = border
+        amt_cell = ws.cell(rr, total_ci, float(redondeo))
+        amt_cell.number_format = "#,##0.00"
+        amt_cell.font          = Font(bold=True, color="1F4E79")
+        amt_cell.alignment     = Alignment(horizontal="right", vertical="center")
+        amt_cell.fill          = fill_redondeo
+        amt_cell.border        = border
+
+        fr = tr + 2
+        ws.merge_cells(start_row=fr, start_column=1, end_row=fr, end_column=total_ci - 1)
+        ws.cell(fr, 1, "TOTAL").font = Font(bold=True, color="375623")
+        ws.cell(fr, 1).alignment     = Alignment(horizontal="left", vertical="center", indent=1)
+        for ci in range(1, total_ci):
+            ws.cell(fr, ci).fill   = fill_total_final
+            ws.cell(fr, ci).border = border
+        final_cell = ws.cell(fr, total_ci)
+        final_cell.value         = f"={total_letter}{tr}+{total_letter}{rr}"
+        final_cell.number_format = "#,##0.00"
+        final_cell.font          = Font(bold=True, color="375623")
+        final_cell.alignment     = Alignment(horizontal="right", vertical="center")
+        final_cell.fill          = fill_total_final
+        final_cell.border        = border
+
     ws.freeze_panes = f"A{HDR_ROW + 1}"
+
+    _write_category_summary(wb, h, lineas)
+
     buf = io.BytesIO()
     wb.save(buf)
     return buf.getvalue()
+
+
+def _write_category_summary(wb, header: dict, lineas: list) -> None:
+    """Second sheet: 8-category resumen matching the client's reporting format."""
+    ws = wb.create_sheet("Resumen por Categoría")
+    ws.column_dimensions["A"].width = 52
+    ws.column_dimensions["B"].width = 20
+
+    border      = _border()
+    fill_title  = _fill("D6E4F0")
+    fill_navy   = _fill("1F4E79")
+    fill_cat    = _fill("FCE4D6")
+    fill_total  = _fill("1F4E79")
+    center      = _center()
+
+    ws.merge_cells("A1:B1")
+    ws["A1"]           = f"RESUMEN POR CATEGORÍA  ·  {header.get('empresa', '')}"
+    ws["A1"].font      = Font(bold=True, size=13, color="1F4E79")
+    ws["A1"].alignment = center
+    ws["A1"].fill      = fill_title
+    ws.row_dimensions[1].height = 28
+
+    ws["A2"]           = f"Recibo N° {header.get('n_recibo', '')}  ·  Período {header.get('periodo', '')}"
+    ws["A2"].font      = Font(size=9, italic=True, color="595959")
+    ws.merge_cells("A2:B2")
+
+    ws["A4"]           = "Categoría"
+    ws["B4"]           = "Monto S/ (sin IGV)"
+    for col in ("A4", "B4"):
+        ws[col].fill      = fill_navy
+        ws[col].font      = Font(bold=True, color="FFFFFF")
+        ws[col].alignment = center
+        ws[col].border    = border
+
+    totals = summarize_by_category(header, lineas)
+    total_label = CATEGORIES[-1]
+    row = 5
+    for label, amount in totals:
+        is_total = (label == total_label)
+        ws.cell(row, 1, label).border    = border
+        ws.cell(row, 2, amount).border   = border
+        ws.cell(row, 2).number_format    = "#,##0.00"
+        if is_total:
+            for c in (1, 2):
+                ws.cell(row, c).fill = fill_total
+                ws.cell(row, c).font = Font(bold=True, color="FFFFFF")
+        else:
+            for c in (1, 2):
+                ws.cell(row, c).fill = fill_cat
+        row += 1
+
+    note_row = row + 1
+    ws.cell(note_row, 1, (
+        "Nota: categorías 1-7 en montos sin IGV (tal como aparecen por anexo). "
+        "'Monto total' corresponde al 'Total a pagar' del recibo (con IGV + cargos inafectos)."
+    )).font = Font(size=8, italic=True, color="595959")
+    ws.merge_cells(start_row=note_row, start_column=1, end_row=note_row, end_column=2)
+    ws.row_dimensions[note_row].height = 28
+    ws.cell(note_row, 1).alignment = Alignment(wrap_text=True, vertical="top")

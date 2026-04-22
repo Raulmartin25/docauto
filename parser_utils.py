@@ -27,3 +27,22 @@ def parse_float(s) -> float:
         return float(str(s).replace(",", ""))
     except (ValueError, AttributeError):
         return 0.0
+
+
+# pdfplumber emits "(cid:N)" for glyphs whose Unicode mapping is missing from
+# the font. Movistar's receipts rely on a handful of these for Spanish accents.
+_CID_MAP = {
+    "(cid:176)": "º",   "(cid:218)": "Ú",   "(cid:237)": "í",   "(cid:243)": "ó",
+    "(cid:233)": "é",   "(cid:225)": "á",   "(cid:250)": "ú",   "(cid:241)": "ñ",
+    "(cid:161)": "¡",   "(cid:191)": "¿",   "(cid:150)": "-",   "(cid:201)": "É",
+    "(cid:193)": "Á",   "(cid:205)": "Í",   "(cid:211)": "Ó",   "(cid:209)": "Ñ",
+}
+
+
+def normalize_text(s: str) -> str:
+    """Replace pdfplumber's (cid:N) escapes with their actual glyphs."""
+    if not s:
+        return s
+    for cid, char in _CID_MAP.items():
+        s = s.replace(cid, char)
+    return s

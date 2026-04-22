@@ -220,10 +220,18 @@
       { key: 'obra',                      label: 'OBRA',                                    auto: false, skipFor: [] },
       { key: 'marca',                     label: 'MARCA',                                   auto: false, skipFor: [] },
       { key: 'plan',                      label: 'PLAN',                                    auto: true,  skipFor: [] },
-      { key: 'cargo_mensual',             label: 'CARGO MENSUAL S/ (sin IGV)',               auto: true,  skipFor: [] },
+      // Movistar-only per-category breakdown (mirrors plan_categories.CATEGORY_COLUMNS).
+      { key: 'cat_b2b',                   label: 'B2B MOVISTAR S/',                          auto: true,  skipFor: ['Claro'] },
+      { key: 'cat_paquete_movil',         label: 'PAQUETE MÓVIL S/',                         auto: true,  skipFor: ['Claro'] },
+      { key: 'cat_internet_movil',        label: 'INTERNET MÓVIL S/',                        auto: true,  skipFor: ['Claro'] },
+      { key: 'cat_internet_teletrabajo',  label: 'INTERNET TELETRABAJO S/',                  auto: true,  skipFor: ['Claro'] },
+      { key: 'cat_movistar_empresas',     label: 'MOVISTAR EMPRESAS S/',                     auto: true,  skipFor: ['Claro'] },
+      { key: 'cat_roaming',               label: 'ROAMING / LDI / SMS INT. S/',              auto: true,  skipFor: ['Claro'] },
+      { key: 'cat_descuentos',            label: 'DESCUENTO Y BONIF. S/',                    auto: true,  skipFor: ['Claro'] },
+      { key: 'cargo_mensual',             label: 'CARGO MENSUAL S/ (sin IGV)',               auto: true,  skipFor: ['Movistar'] },
       { key: 'servicios_adicionales',     label: 'SERVICIOS ADICIONALES S/ (sin IGV)',       auto: true,  skipFor: ['Movistar'] },
-      { key: 'descuentos',                label: 'DESCUENTOS S/',                            auto: true,  skipFor: ['Claro'] },
-      { key: 'cargo_adicional_inafecto',  label: 'CARGO ADICIONAL INAFECTO S/ (sin IGV)',   auto: true,  skipFor: ['Claro'] },
+      { key: 'descuentos',                label: 'DESCUENTOS S/',                            auto: true,  skipFor: ['Claro', 'Movistar'] },
+      { key: 'cargo_adicional_inafecto',  label: 'CARGO ADICIONAL INAFECTO S/ (sin IGV)',   auto: true,  skipFor: ['Claro', 'Movistar'] },
       { key: 'total_linea',               label: 'TOTAL LÍNEA S/ (sin IGV)',                auto: true,  skipFor: [] },
     ]
 
