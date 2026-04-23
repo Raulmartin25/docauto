@@ -27,7 +27,7 @@ class RateLimitExceeded(Exception):
 
 
 async def check_rate_limit(
-    ip: str,
+    identifier: str,
     limit: int,
     window_seconds: int,
     namespace: str = "process",
@@ -39,7 +39,7 @@ async def check_rate_limit(
         logger.warning("Upstash credentials missing — rate limiting disabled")
         return
 
-    key = f"ratelimit:{namespace}:{ip}"
+    key = f"ratelimit:{namespace}:{identifier}"
 
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
