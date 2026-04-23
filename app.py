@@ -6,6 +6,7 @@ FastAPI server. Run with:
 """
 
 import os
+import secrets
 import tempfile
 from pathlib import Path
 
@@ -24,9 +25,11 @@ app = FastAPI(title="DocAuto")
 
 RATE_LIMIT_MAX = 2
 RATE_LIMIT_WINDOW_SECONDS = 3600
+COOKIE_NAME = "docauto_rl"
+COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24 * 365  # 1 year
 
 
-def _client_ip(request: Request) -> str:
+def _raw_client_ip(request: Request) -> str:
     # Vercel places the real client IP first in X-Forwarded-For.
     forwarded = request.headers.get("x-forwarded-for")
     if forwarded:
@@ -35,6 +38,27 @@ def _client_ip(request: Request) -> str:
     if real_ip:
         return real_ip.strip()
     return request.client.host if request.client else "unknown"
+
+
+def _client_subnet(request: Request) -> str:
+    # Peruvian ISPs reassign IPs within the same /16 after a modem restart
+    # (the /24 changes, /16 usually stays), so keying the rate limit on /16
+    # defeats the restart bypass. Cost: up to 65,536 IPs share one counter
+    # — fine at current scale, revisit if DocAuto hits heavy usage.
+    ip = _raw_client_ip(request)
+    parts = ip.split(".")
+    if len(parts) == 4:
+        return f"{parts[0]}.{parts[1]}.0.0"
+    return ip  # IPv6 or malformed — use as-is
+
+
+def _serialize_cookie(name: str, value: str, max_age: int, secure: bool) -> str:
+    # FastAPI's HTTPException path drops cookies set via the injected Response,
+    # so error responses need the cookie injected manually via this header string.
+    parts = [f"{name}={value}", f"Max-Age={max_age}", "Path=/", "HttpOnly", "SameSite=Lax"]
+    if secure:
+        parts.append("Secure")
+    return "; ".join(parts)
 
 
 BASE_DIR = Path(__file__).parent
@@ -48,14 +72,60 @@ async def index():
 @app.post("/process")
 async def process_pdf(
     request: Request,
+    response: Response,
     file: UploadFile = File(...),
     carrier: str = Form("movistar"),
 ):
+    # Read existing cookie or mint a new UUID. Refresh expiry on every use.
+    cookie_id = request.cookies.get(COOKIE_NAME) or secrets.token_urlsafe(16)
+    secure_cookie = request.url.scheme == "https"
+
+    # Success path: the injected Response carries the cookie through.
+    response.set_cookie(
+        key=COOKIE_NAME,
+        value=cookie_id,
+        max_age=COOKIE_MAX_AGE_SECONDS,
+        httponly=True,
+        secure=secure_cookie,
+        samesite="lax",
+    )
+
+    # Error path: HTTPException drops the injected Response's cookies, so
+    # every HTTPException raised from this handler must carry Set-Cookie
+    # explicitly. The wrapping try/except below handles that uniformly.
+    cookie_header = _serialize_cookie(
+        COOKIE_NAME, cookie_id, COOKIE_MAX_AGE_SECONDS, secure_cookie,
+    )
+
+    try:
+        return await _process_pdf_inner(request, cookie_id, file, carrier)
+    except HTTPException as exc:
+        merged = dict(exc.headers or {})
+        merged["Set-Cookie"] = cookie_header
+        raise HTTPException(exc.status_code, exc.detail, headers=merged) from exc
+
+
+async def _process_pdf_inner(
+    request: Request,
+    cookie_id: str,
+    file: UploadFile,
+    carrier: str,
+):
+    # Two parallel rate limits: IP /16 subnet (catches modem-restart bypass)
+    # and cookie UUID (catches users who change IP but keep the browser).
+    # Either over its limit → 429.
     try:
         await check_rate_limit(
-            ip=_client_ip(request),
+            identifier=_client_subnet(request),
             limit=RATE_LIMIT_MAX,
             window_seconds=RATE_LIMIT_WINDOW_SECONDS,
+            namespace="process",
+        )
+        await check_rate_limit(
+            identifier=cookie_id,
+            limit=RATE_LIMIT_MAX,
+            window_seconds=RATE_LIMIT_WINDOW_SECONDS,
+            namespace="cookie",
         )
     except RateLimitExceeded as exc:
         raise HTTPException(
