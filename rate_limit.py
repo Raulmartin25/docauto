@@ -59,8 +59,21 @@ async def check_rate_limit(
         logger.error("Upstash request failed: %s — allowing request", exc)
         return
 
-    count = results[0]["result"]
-    ttl = results[2]["result"]
+    try:
+        count = results[0]["result"]
+        ttl = results[2]["result"]
+    except (KeyError, TypeError, IndexError) as exc:
+        # Upstash returned a shape we didn't expect (e.g. per-command
+        # error objects). Log the raw payload so we can diagnose, then
+        # fail-open so users aren't blocked by a misconfig we haven't
+        # caught yet.
+        logger.error(
+            "Unexpected Upstash pipeline response — allowing request. "
+            "Error: %s. Raw: %r",
+            exc,
+            results,
+        )
+        return
 
     if count > limit:
-        raise RateLimitExceeded(retry_after=max(ttl, 1))
+        raise RateLimitExceeded(retry_after=max(ttl or window_seconds, 1))
