@@ -143,6 +143,38 @@
     <!-- ── Result card ───────────────────────────────────────────────── -->
     <div id="state-result" class="hidden"></div>
 
+    <!-- ── Rate limit state (HTTP 429) ──────────────────────────────── -->
+    <div id="state-rate-limit" class="hidden">
+      <div class="bg-white rounded-2xl border border-amber-200 shadow-sm overflow-hidden">
+        <div class="bg-amber-500 px-6 py-4 flex items-center gap-3">
+          <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round"
+              d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+          </svg>
+          <span class="text-white font-semibold">Límite de conversiones alcanzado</span>
+        </div>
+        <div class="p-6">
+          <p id="rate-limit-msg" class="text-slate-700 text-sm mb-4"></p>
+          <div class="bg-amber-50 border border-amber-200 rounded-lg p-4 space-y-2 text-sm">
+            <p class="flex items-start gap-2 text-slate-700">
+              <svg class="w-4 h-4 text-amber-600 shrink-0 mt-0.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+              </svg>
+              <span><strong>Límite actual:</strong> 2 conversiones por hora por usuario.</span>
+            </p>
+            <p id="rate-limit-retry" class="flex items-start gap-2 text-slate-600"></p>
+          </div>
+          <button
+            onclick="reset()"
+            class="mt-4 border border-slate-300 hover:border-slate-400 text-slate-600
+                   font-semibold py-2 px-5 rounded-lg text-sm transition-colors duration-200"
+          >
+            Volver
+          </button>
+        </div>
+      </div>
+    </div>
+
     <!-- ── Error state ───────────────────────────────────────────────── -->
     <div id="state-error" class="hidden">
       <div class="bg-white rounded-2xl border border-red-200 shadow-sm overflow-hidden">
@@ -304,6 +336,13 @@
       try {
         const res  = await fetch('/process', { method: 'POST', body: formData })
         const body = await res.json()
+
+        if (res.status === 429) {
+          const retryAfter = parseInt(res.headers.get('Retry-After') || '3600', 10)
+          showRateLimit(body.detail || 'Has alcanzado el límite de conversiones.', retryAfter)
+          return
+        }
+
         if (!res.ok) throw new Error(body.detail || 'Error desconocido')
 
         currentData = { header: body.header, lineas: body.lineas }
@@ -312,6 +351,32 @@
       } catch (err) {
         showError(err.message)
       }
+    }
+
+    // ── Rate limit helpers ───────────────────────────────────────────
+    function formatRetryAfter(seconds) {
+      if (seconds < 60) {
+        return `${seconds} segundo${seconds === 1 ? '' : 's'}`
+      }
+      const minutes = Math.ceil(seconds / 60)
+      if (minutes < 60) {
+        return `${minutes} minuto${minutes === 1 ? '' : 's'}`
+      }
+      const hours = Math.floor(minutes / 60)
+      const rem   = minutes % 60
+      if (rem === 0) return `${hours} hora${hours === 1 ? '' : 's'}`
+      return `${hours} h ${rem} min`
+    }
+
+    function showRateLimit(message, retryAfterSeconds) {
+      document.getElementById('rate-limit-msg').textContent = message
+      document.getElementById('rate-limit-retry').innerHTML = `
+        <svg class="w-4 h-4 text-amber-600 shrink-0 mt-0.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+        </svg>
+        <span>Podrás intentar de nuevo en aproximadamente <strong>${formatRetryAfter(retryAfterSeconds)}</strong>.</span>
+      `
+      showState('rate-limit')
     }
 
     // ── Render result (summary + editable table) ─────────────────────
@@ -503,7 +568,7 @@
         main.classList.add('max-w-4xl')
         main.classList.remove('max-w-full')
       }
-      ;['upload', 'processing', 'result', 'error'].forEach(s => {
+      ;['upload', 'processing', 'result', 'error', 'rate-limit'].forEach(s => {
         document.getElementById(`state-${s}`).classList.add('hidden')
       })
       document.getElementById(`state-${state}`).classList.remove('hidden')

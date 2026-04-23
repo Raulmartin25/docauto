@@ -9,14 +9,32 @@ import os
 import tempfile
 from pathlib import Path
 
+from dotenv import load_dotenv
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import HTMLResponse, Response
 
 import parser_movistar
 import parser_claro
 from excel_generator import generate_excel
+from rate_limit import RateLimitExceeded, check_rate_limit
+
+load_dotenv()
 
 app = FastAPI(title="DocAuto")
+
+RATE_LIMIT_MAX = 2
+RATE_LIMIT_WINDOW_SECONDS = 3600
+
+
+def _client_ip(request: Request) -> str:
+    # Vercel places the real client IP first in X-Forwarded-For.
+    forwarded = request.headers.get("x-forwarded-for")
+    if forwarded:
+        return forwarded.split(",")[0].strip()
+    real_ip = request.headers.get("x-real-ip")
+    if real_ip:
+        return real_ip.strip()
+    return request.client.host if request.client else "unknown"
 
 
 BASE_DIR = Path(__file__).parent
@@ -28,7 +46,27 @@ async def index():
 
 
 @app.post("/process")
-async def process_pdf(file: UploadFile = File(...), carrier: str = Form("movistar")):
+async def process_pdf(
+    request: Request,
+    file: UploadFile = File(...),
+    carrier: str = Form("movistar"),
+):
+    try:
+        await check_rate_limit(
+            ip=_client_ip(request),
+            limit=RATE_LIMIT_MAX,
+            window_seconds=RATE_LIMIT_WINDOW_SECONDS,
+        )
+    except RateLimitExceeded as exc:
+        raise HTTPException(
+            status_code=429,
+            detail=(
+                f"Has alcanzado el límite de {RATE_LIMIT_MAX} conversiones por hora. "
+                "Intenta de nuevo más tarde."
+            ),
+            headers={"Retry-After": str(exc.retry_after)},
+        ) from exc
+
     if not file.filename.lower().endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Solo se aceptan archivos PDF.")
 
